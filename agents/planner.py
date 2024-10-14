@@ -1,5 +1,5 @@
 import re,os,ast
-from langchain_openai import ChatOpenAI
+from openai import OpenAI
 
 #prompt
 plannerPrompt:str = """
@@ -26,7 +26,10 @@ def planParsed2list(output:str)->list:
 
 #llm
 def plan(input:str) -> list:
-    llm = ChatOpenAI(model=os.getenv("MODEL"), api_key=os.getenv("LLM_KEY"), base_url=os.getenv("LLM_BASE"))
+    llm = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url=os.getenv("OPENAI_BASE_URL"))
     prompt = plannerPrompt.format(object=input)
-    result = llm.invoke(prompt).content
+    result = llm.chat.completions.create(
+        model=os.getenv("MODEL"),
+        messages=[{'role':'user','content':prompt}]
+    ).choices[0].message.content
     return planParsed2list(result)

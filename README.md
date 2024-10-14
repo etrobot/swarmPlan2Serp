@@ -1,5 +1,5 @@
-# FastGraph
-A Plan-and-excute(search) demo with Langgraph and FastHTML.
+# swarmPlan2Serp
+A Plan-and-excute(search) demo with OpenAI Swarm and FastHTML.
 
 - <strong>No function-call feature required.</strong>
 - Use any LLM api that follows the OpenAI format.

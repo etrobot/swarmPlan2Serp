@@ -1,5 +1,5 @@
 import re,os,ast
-from langchain_openai import ChatOpenAI
+from openai import OpenAI
 
 searchOrAnswer:str ="""\
 For the given objective, search the keywords group by group and then make the final answer.  
@@ -21,15 +21,19 @@ Otherwise, output the next keyword group in the last line with this format:
 finishWord = "Misson Complete!"
 shouldLoopWord = "Further Search:"
 
-def thinkNanswer(input:str,plan:str,current_plan:str,past_steps:str) -> (str,str):
-    llm = ChatOpenAI(model=os.getenv("MODEL"), api_key=os.getenv("LLM_KEY"), base_url=os.getenv("LLM_BASE"))
+def thinkNanswer(input: str, plan: str, current_plan: str, past_steps: str) -> tuple[str, str]:
+    llm = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url=os.getenv("OPENAI_BASE_URL"))
     prompt = searchOrAnswer.format(input=input,plan=plan,current_plan=current_plan,past_steps=past_steps,finishWord=finishWord,shouldLoopWord=shouldLoopWord)
-    result = llm.invoke([{'role':'user','content':prompt}]).content
+    result = llm.chat.completions.create(
+        model=os.getenv("MODEL"),
+        messages=[{'role':'user','content':prompt}]
+    ).choices[0].message.content
     nextPlan = None
     resultDealed =result.split(shouldLoopWord)
     answer = resultDealed[0]
     if len(resultDealed)>1 and finishWord not in result:
         nextPlan = resultDealed[1]
     return answer,nextPlan
+
 
 
