@@ -20,7 +20,6 @@ def search(query: str, context_variables: dict) -> Result:
         context_variables: 上下文变量
     """
     results = context_variables.get("search_results", [])
-    print('results old:', len(results))
     
     max_retries = 3
     retry_delay = 5
@@ -44,7 +43,7 @@ def search(query: str, context_variables: dict) -> Result:
     
     # 将搜索结果保存到上下文中
     return Result(
-        value=json.dumps(results, ensure_ascii=False),
+        value='\n'.join(x["title"]+':'+x["body"] for x in context_variables.get("search_results", [])),
         context_variables={
             "search_results": results,
             "original_query": query
@@ -52,64 +51,20 @@ def search(query: str, context_variables: dict) -> Result:
         agent=analyzer_agent
     )
 
-def analyze_results(context_variables: dict) -> Result:
-    """分析搜索结果并提供见解
-    
-    Args:
-        context_variables: 包含搜索结果的上下文变量
-    """
-    results = context_variables.get("search_results", [])
+def transfer_to_synthesizer(context_variables: dict) -> Result:
     return Result(
-        value=json.dumps(results, ensure_ascii=False),
-        agent=synthesizer_agent  # 分析完成后转交给合成者
-    )
-
-def synthesize_response(context_variables: dict) -> str:
-    """合成最终回答
-    
-    Args:
-        context_variables: 包含所有必要信息的上下文变量
-    """
-    return "Based on the analysis..."
+       value=context_variables.get("value", []),
+       context_variables=context_variables,
+       agent=synthesizer_agent,
+   )
 
 # 搜索器 Agent
 searcher_agent = Agent(
     name="Searcher",
-    instructions="""You are a search expert. Your role is to:
-1. Understand user queries and determine the best search strategy
-2. Break down complex questions into searchable queries
-3. Execute searches using the search() function to gather relevant information
-
-When you receive a question:
-1. First analyze if you need to break it down into multiple searches
-2. For each search, formulate an effective query that will yield relevant results
-3. Use the search() function to perform the search
-4. Pass the results to the analyzer
-
-Be thorough but efficient - prioritize quality over quantity in your searches.""",
-    functions=[search]
+    instructions="""You are a search expert.""",
+    functions=[search,transfer_to_synthesizer]
 )
 
-# 分析器 Agent
-analyzer_agent = Agent(
-    name="Analyzer",
-    instructions="""You are an analysis expert. Your role is to:
-1. Review search results objectively
-2. Identify key information and patterns
-3. Evaluate the credibility and relevance of sources
-4. Extract the most pertinent information
-
-For each piece of information:
-1. Verify it against other sources when possible
-2. Note any contradictions or inconsistencies
-3. Identify what additional information might be needed
-4. Organize the insights logically
-
-Focus on facts and credible information, noting any uncertainties or assumptions.""",
-    functions=[analyze_results]
-)
-
-# 合成器 Agent
 synthesizer_agent = Agent(
     name="Synthesizer",
     instructions="""You are a synthesis expert. Your role is to:
@@ -125,14 +80,19 @@ Your response should:
 4. Be accurate and nuanced
 5. Use language appropriate for the user's level of expertise
 
-Maintain a balanced, objective tone while being helpful and informative.""",
-    functions=[synthesize_response]
+Maintain a balanced, objective tone while being helpful and informative."""
+)
+# 分析器 Agent
+analyzer_agent = Agent(
+    name="Analyzer",
+    instructions="""Determine if you need to search again with another keyword.""",
+    functions=[transfer_to_synthesizer,search]
 )
 
 
 # 运行示例
 def run(
-    starting_agent, context_variables=None, stream=False, debug=False
+    starting_agent, context_variables=None, stream=False, debug=False,user_input='openai swarm'
 ) -> None:
     client = Swarm(OpenAI(api_key=os.getenv("OPENAI_API_KEY"),base_url=os.getenv("LLM_BASE"),))
     print("Starting Swarm CLI 🐝")
@@ -140,28 +100,25 @@ def run(
     messages = []
     agent = starting_agent
 
-    while True:
-        user_input = input("\033[90mUser\033[0m: ")
-        messages.append({"role": "user", "content": user_input})
+    # user_input = input("\033[90mUser\033[0m: ")
+    messages.append({"role": "user", "content": user_input})
 
-        response = client.run(
-            model_override=os.getenv("MODEL"),
-            agent=agent,
-            messages=messages,
-            context_variables=context_variables or {},
-            stream=stream,
-            debug=debug,
-        )
+    response = client.run(
+        model_override=os.getenv("MODEL"),
+        agent=agent,
+        messages=messages,
+        context_variables=context_variables or {},
+        stream=stream,
+        debug=debug,
+    )
 
-        if stream:
-            response = process_and_print_streaming_response(response)
-        else:
-            pretty_print_messages(response.messages)
+    if stream:
+        response = process_and_print_streaming_response(response)
+    else:
+        pretty_print_messages(response.messages)
 
-        messages.extend(response.messages)
-        agent = response.agent
 
 
 # 使用示例
 if __name__ == "__main__":
-    run(starting_agent=searcher_agent,debug=True,context_variables={})
+    run(starting_agent=searcher_agent,stream=True,context_variables={})
