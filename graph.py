@@ -3,7 +3,6 @@ from swarm.types import Result
 from openai import OpenAI
 from duckduckgo_search import DDGS
 import os,time
-import json
 from dotenv import load_dotenv,find_dotenv
 from swarm.repl.repl import pretty_print_messages
 import time
@@ -61,7 +60,7 @@ def transfer_to_synthesizer(context_variables: dict) -> Result:
 # 搜索器 Agent
 searcher_agent = Agent(
     name="Searcher",
-    instructions="""You are a search expert.""",
+    instructions="""You are a search expert. call search function to search the internet.""",
     functions=[search]
 )
 
@@ -89,12 +88,14 @@ analyzer_agent = Agent(
     functions=[transfer_to_synthesizer,search]
 )
 
-def process_and_print_streaming_response(response):
+def process_streaming_response(response, debug=False):
     content = ""
     last_sender = ""
-    function_results = []
 
     for chunk in response:
+        if debug and 'response' in chunk:
+            print(f"\033[93mDEBUG: {chunk}\033[0m")  # 输出debug信息
+
         if "sender" in chunk:
             last_sender = chunk["sender"]
 
@@ -111,24 +112,18 @@ def process_and_print_streaming_response(response):
                 name = f["name"]
                 if not name:
                     continue
-                print(f"\033[94m{last_sender}: \033[95m{name}\033[0m()")
-
-        if "function_call" in chunk:
-            function_results.append(chunk["function_call"])
+                print(f"\033[94m{last_sender}: \033[95m{name}\033[0m(){f}")
 
         if "delim" in chunk and chunk["delim"] == "end" and content:
             print()  # End of response message
             content = ""
 
         if "response" in chunk:
-            return chunk["response"], function_results
-
-    return None, function_results
-
+            return chunk["response"]
 
 # 运行示例
 def run(
-    starting_agent, context_variables=None, stream=False, debug=False,user_input='openai swarm'
+    starting_agent, context_variables=None, stream=False, debug=False, user_input='openai swarm'
 ) -> None:
     client = Swarm(OpenAI(api_key=os.getenv("OPENAI_API_KEY"),base_url=os.getenv("LLM_BASE"),))
     print("Starting Swarm CLI 🐝")
@@ -149,7 +144,7 @@ def run(
     )
 
     if stream:
-        response = process_and_print_streaming_response(response)
+        response = process_streaming_response(response, debug=debug)  # 传递debug参数
     else:
         pretty_print_messages(response.messages)
 
