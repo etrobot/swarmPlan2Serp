@@ -5,7 +5,7 @@ from duckduckgo_search import DDGS
 import os,time
 import json
 from dotenv import load_dotenv,find_dotenv
-from swarm.repl.repl import process_and_print_streaming_response,pretty_print_messages
+from swarm.repl.repl import pretty_print_messages
 import time
 import random
 
@@ -53,7 +53,7 @@ def search(query: str, context_variables: dict) -> Result:
 
 def transfer_to_synthesizer(context_variables: dict) -> Result:
     return Result(
-       value=context_variables.get("value", []),
+       value=context_variables.get("value", ''),
        context_variables=context_variables,
        agent=synthesizer_agent,
    )
@@ -62,7 +62,7 @@ def transfer_to_synthesizer(context_variables: dict) -> Result:
 searcher_agent = Agent(
     name="Searcher",
     instructions="""You are a search expert.""",
-    functions=[search,transfer_to_synthesizer]
+    functions=[search]
 )
 
 synthesizer_agent = Agent(
@@ -88,6 +88,42 @@ analyzer_agent = Agent(
     instructions="""Determine if you need to search again with another keyword.""",
     functions=[transfer_to_synthesizer,search]
 )
+
+def process_and_print_streaming_response(response):
+    content = ""
+    last_sender = ""
+    function_results = []
+
+    for chunk in response:
+        if "sender" in chunk:
+            last_sender = chunk["sender"]
+
+        if "content" in chunk and chunk["content"] is not None:
+            if not content and last_sender:
+                print(f"\033[94m{last_sender}:\033[0m", end=" ", flush=True)
+                last_sender = ""
+            print(chunk["content"], end="", flush=True)
+            content += chunk["content"]
+
+        if "tool_calls" in chunk and chunk["tool_calls"] is not None:
+            for tool_call in chunk["tool_calls"]:
+                f = tool_call["function"]
+                name = f["name"]
+                if not name:
+                    continue
+                print(f"\033[94m{last_sender}: \033[95m{name}\033[0m()")
+
+        if "function_call" in chunk:
+            function_results.append(chunk["function_call"])
+
+        if "delim" in chunk and chunk["delim"] == "end" and content:
+            print()  # End of response message
+            content = ""
+
+        if "response" in chunk:
+            return chunk["response"], function_results
+
+    return None, function_results
 
 
 # 运行示例
@@ -121,4 +157,4 @@ def run(
 
 # 使用示例
 if __name__ == "__main__":
-    run(starting_agent=searcher_agent,stream=True,context_variables={})
+    run(starting_agent=searcher_agent,stream=True,debug=True,context_variables={})
