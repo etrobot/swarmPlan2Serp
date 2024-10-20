@@ -4,9 +4,10 @@ from openai import OpenAI
 from duckduckgo_search import DDGS
 import os,time
 from dotenv import load_dotenv,find_dotenv
-from swarm.repl.repl import pretty_print_messages
+from swarm.repl.repl import pretty_print_messages,process_and_print_streaming_response
 import time
 import random
+import asyncio
 
 load_dotenv(find_dotenv())
 
@@ -88,38 +89,6 @@ analyzer_agent = Agent(
     functions=[transfer_to_synthesizer,search]
 )
 
-def process_streaming_response(response, debug=False):
-    content = ""
-    last_sender = ""
-
-    for chunk in response:
-        if debug and 'response' in chunk:
-            print(f"\033[93mDEBUG: {chunk}\033[0m")  # 输出debug信息
-
-        if "sender" in chunk:
-            last_sender = chunk["sender"]
-
-        if "content" in chunk and chunk["content"] is not None:
-            if not content and last_sender:
-                print(f"\033[94m{last_sender}:\033[0m", end=" ", flush=True)
-                last_sender = ""
-            print(chunk["content"], end="", flush=True)
-            content += chunk["content"]
-
-        if "tool_calls" in chunk and chunk["tool_calls"] is not None:
-            for tool_call in chunk["tool_calls"]:
-                f = tool_call["function"]
-                name = f["name"]
-                if not name:
-                    continue
-                print(f"\033[94m{last_sender}: \033[95m{name}\033[0m(){f}")
-
-        if "delim" in chunk and chunk["delim"] == "end" and content:
-            print()  # End of response message
-            content = ""
-
-        if "response" in chunk:
-            return chunk["response"]
 
 # 运行示例
 def run(
@@ -144,12 +113,11 @@ def run(
     )
 
     if stream:
-        response = process_streaming_response(response, debug=debug)  # 传递debug参数
+        response = process_and_print_streaming_response(response, debug=debug)  # 传递debug参数
     else:
         pretty_print_messages(response.messages)
 
-
-
+swarmAgent = Swarm(OpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url=os.getenv("LLM_BASE")))
 # 使用示例
 if __name__ == "__main__":
     run(starting_agent=searcher_agent,stream=True,debug=True,context_variables={})

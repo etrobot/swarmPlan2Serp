@@ -164,3 +164,4 @@ cython_debug/
 *.db-shm
 *.db-wal
 .DS_Store
+database/chats.db
