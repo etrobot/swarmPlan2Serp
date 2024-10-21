@@ -1,9 +1,10 @@
-from fasthtml.common import Titled, Form, Group, Input, Button, Div, H3, P, Script, EventStream, sse_message, serve, fast_app, MarkdownJS, Details, Summary, Iframe, Body, Nav, A, Main, RedirectResponse
-from Agents import Agents, analyzer_agent
+from fasthtml.common import Titled, Form, Group, Input, Button, Div, H3, P, Script, EventStream, sse_message, serve, fast_app, MarkdownJS, Details, Summary, Iframe, Body, Nav, A, Main, RedirectResponse, Template, Style
+# 添加 Zero_md 导入
+from fasthtml.components import Zero_md
 import asyncio, os, json, shortuuid
 from datetime import datetime
 from dotenv import load_dotenv
-
+from Agents import Agents, analyzer_agent
 # Add database functionality
 from fasthtml.common import database
 
@@ -17,13 +18,23 @@ if chats not in db.t:
     chats.create(id=str, title=str, created=datetime, messages=bytes, pk="id")
 chatDataTransferObject = chats.dataclass()
 
-# Add Tailwind CSS and DaisyUI
-tlink = Script(src="https://cdn.tailwindcss.com")
-sselink = Script(src="https://unpkg.com/htmx-ext-sse@2.2.1/sse.js")
-mdjs = MarkdownJS()
+# 添加 Zero-md 的 script 标签
+zeromd_headers = [Script(type="module", src="https://cdn.jsdelivr.net/npm/zero-md@3?register")]
 
-app, rt = fast_app(hdrs=(tlink, sselink, mdjs))
+app, rt = fast_app(hdrs=(
+        Script(src="https://unpkg.com/tailwindcss-cdn@3.4.3/tailwindcss.js"), 
+        Script(src="https://unpkg.com/htmx-ext-sse@2.2.1/sse.js"),
+        MarkdownJS(),
+        # 添加 Zero-md 的 headers
+        *zeromd_headers
+    )
+)
 messages = []
+
+# 修改 render_md 函数
+def render_md(md, css='.markdown-body {background-color: unset !important; color: unset !important;}'):
+    css_template = Template(Style(css), data_append=True)
+    return Zero_md(css_template, Script(md, type="text/markdown"))
 
 # ChatMessage component
 def ChatMessage(msg_idx, **kwargs):
@@ -33,7 +44,7 @@ def ChatMessage(msg_idx, **kwargs):
     return Div(
         Div(
             Div(msg['role'], cls="text-sm text-gray-600 mb-1"),
-            Div(msg['content'], id=f"chat-content-{msg_idx}", cls=f"{bubble_class}", **kwargs),
+            Div(render_md(msg['content']), id=f"chat-content-{msg_idx}", cls=f"{bubble_class}", **kwargs),
             cls="flex flex-col"
         ),
         id=f"chat-message-{msg_idx}",
@@ -167,20 +178,18 @@ async def response_generator(user_query: str, id: str):
     )
     if not user_query:
         return
-    accumulated_content = ""
+    reply = ""
+
     try:
         for chunk in stream:
             if "content" in chunk and chunk["content"] is not None:
-                accumulated_content += chunk["content"]
-                if accumulated_content.endswith("\n\n"):
-                    print(accumulated_content)
-                    parts = accumulated_content.split("\n\n")
-                    to_render = "\n\n".join(parts[:-1])
-                    yield sse_message(Div(to_render, id="markdown-content", cls="marked"))
+                reply+=chunk["content"]
+                if '\n\n' in reply:
+                    if reply.endswith("\n\n") and len(reply.split('\n\n'))>2:
+                        yield sse_message(render_md(reply.split('\n\n')[-2]))
                 else:
                     yield sse_message(chunk["content"])
             await asyncio.sleep(0)
-
     except Exception as e:
         yield sse_message(
            Summary(
@@ -190,7 +199,7 @@ async def response_generator(user_query: str, id: str):
            )
         )
     
-    messages[-1]['content'] = accumulated_content
+    messages[-1]['content'] = reply
     
     # Update database
     chat = chatDataTransferObject()
@@ -201,7 +210,7 @@ async def response_generator(user_query: str, id: str):
     chats.upsert(chat)
     
     yield sse_message(
-        Div(A(chat.title, href=f"/chat/{chat.id}"), P(chat.created, cls='text-xs'), cls='py-1', hx_swap_oob="beforeend", id="chats"),
+        Div(A(chat.title, href=f"/chat/{chat.id}"), P(chat.created, cls='text-xs'), cls='py-1', hx_swap_oob="beforeend show:bottom", id="chats"),
         event="update_chats"
     )
     

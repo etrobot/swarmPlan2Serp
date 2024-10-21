@@ -76,6 +76,7 @@ Your response should:
 3. Address all aspects of the original question
 4. Be accurate and nuanced
 5. Use language appropriate for the user's level of expertise
+6. Use markdown format to present the information
 
 Maintain a balanced, objective tone while being helpful and informative."""
 )
