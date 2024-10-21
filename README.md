@@ -12,12 +12,12 @@ graph TD;
 	Synthesizer(Synthesizer)
 	__end__([__end__]):::last
 	__start__ --> plan_agent;
-	plan_agent --> serpTool;
-	serpTool --> Synthesizer;
-	Synthesizer -.-> plan_agent;
-	Synthesizer -.-> serpTool;
+	plan_agent --> Search;
+	Search --> plan_agent;
+	plan_agent --> Synthesizer;
 	Synthesizer -.-> __end__;	
 ```
+<img width="1913" alt="image" src="https://github.com/user-attachments/assets/a81f3431-3902-47bd-966a-152640e22df8">
 
 ## Usage
 
