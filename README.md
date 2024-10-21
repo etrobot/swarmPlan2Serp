@@ -7,18 +7,17 @@ A Plan-and-excute(search) demo with OpenAI Swarm and FastHTML.
 ```mermaid
 graph TD;
 	__start__([__start__]):::first
-	planNode(planNode)
-	serpTool(serpTool)
-	decisionNode(decisionNode)
+	plan_agent(Analyst)
+	Search(Search)
+	Synthesizer(Synthesizer)
 	__end__([__end__]):::last
-	__start__ --> planNode;
-	planNode --> serpTool;
-	serpTool --> decisionNode;
-	decisionNode -.-> planNode;
-	decisionNode -.-> serpTool;
-	decisionNode -.-> __end__;	
+	__start__ --> plan_agent;
+	plan_agent --> serpTool;
+	serpTool --> Synthesizer;
+	Synthesizer -.-> plan_agent;
+	Synthesizer -.-> serpTool;
+	Synthesizer -.-> __end__;	
 ```
-https://github.com/user-attachments/assets/f2362729-60c4-45a1-94f1-af700d4d3b43
 
 ## Usage
 
@@ -26,6 +25,6 @@ https://github.com/user-attachments/assets/f2362729-60c4-45a1-94f1-af700d4d3b43
 2. Run ```poetry install```
 3. Run ```poetry run python app.py```
 
-## Inspiration
+## Support
 
-[curiosity](https://github.com/jank/curiosity)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://www.paypal.com/paypalme/franklin755)

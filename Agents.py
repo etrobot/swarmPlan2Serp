@@ -7,17 +7,15 @@ from dotenv import load_dotenv,find_dotenv
 from swarm.repl.repl import pretty_print_messages,process_and_print_streaming_response
 import time
 import random
-import asyncio
 
 load_dotenv(find_dotenv())
 
-# 搜索函数
 def search(query: str, context_variables: dict) -> Result:
-    """执行 DuckDuckGo 搜索并返回结果
+    """Search
     
     Args:
-        query: 搜索关键词
-        context_variables: 上下文变量
+        query: keyword
+        context_variables: context variables
     """
     results = context_variables.get("search_results", [])
     
@@ -35,11 +33,11 @@ def search(query: str, context_variables: dict) -> Result:
                 break
         except Exception as e:
             if attempt < max_retries - 1:
-                print(f"搜索失败，正在重试（{attempt + 1}/{max_retries}）...")
+                print(f"Search failed, retrying... ({attempt + 1}/{max_retries})")
                 time.sleep(retry_delay + random.uniform(0, 2))
             else:
-                print(f"搜索失败：{str(e)}")
-                results.append({"title": "搜索失败", "body": "无法获取搜索结果，请稍后再试。"})
+                print(f"Search failed: {str(e)}")
+                results.append({"title": "Search failed", "body": "Failed to get search results, please try again later."})
     
     # 将搜索结果保存到上下文中
     return Result(
@@ -58,7 +56,6 @@ def transfer_to_synthesizer(context_variables: dict) -> Result:
        agent=synthesizer_agent,
    )
 
-# 搜索器 Agent
 searcher_agent = Agent(
     name="Searcher",
     instructions="""You are a search expert. call search function to search the internet.""",
@@ -85,8 +82,8 @@ Maintain a balanced, objective tone while being helpful and informative."""
 # 分析器 Agent
 analyzer_agent = Agent(
     name="Analyzer",
-    instructions="""Determine if you need to search again with another keyword.""",
-    functions=[transfer_to_synthesizer,search]
+    instructions="""Determine if you need to use search tool or there're enough information to handoff to synthesizer.""",
+    functions=[search,transfer_to_synthesizer]
 )
 
 
@@ -113,11 +110,11 @@ def run(
     )
 
     if stream:
-        response = process_and_print_streaming_response(response, debug=debug)  # 传递debug参数
+        response = process_and_print_streaming_response(response)
     else:
         pretty_print_messages(response.messages)
 
-swarmAgent = Swarm(OpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url=os.getenv("LLM_BASE")))
-# 使用示例
+Agents = Swarm(OpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url=os.getenv("LLM_BASE")))
+
 if __name__ == "__main__":
     run(starting_agent=searcher_agent,stream=True,debug=True,context_variables={})

@@ -1,5 +1,5 @@
 from fasthtml.common import Titled, Form, Group, Input, Button, Div, H3, P, Script, EventStream, sse_message, serve, fast_app, MarkdownJS, Details, Summary, Iframe, Body, Nav, A, Main, RedirectResponse
-from graph import swarmAgent, analyzer_agent
+from Agents import Agents, analyzer_agent
 import asyncio, os, json, shortuuid
 from datetime import datetime
 from dotenv import load_dotenv
@@ -43,7 +43,7 @@ def ChatMessage(msg_idx, **kwargs):
 
 def navigation():
     return Nav(
-        H3('卧龙AI炒家(纯属娱乐)', cls="text-2xl font-bold text-white"),
+        H3('SwarmPlan2Serp - A OpenAI Swarm Application with FastHTML', cls="text-2xl font-bold text-white"),
         cls='m-0 bg-teal-600 p-4'
     )
 
@@ -67,7 +67,7 @@ async def get(id: str):
             navigation(),
             Main(
                 Div(
-                    H3('历史记录', cls='font-bold my-2'),
+                    H3('Chats History', cls='font-bold my-2'),
                     *[Div(
                         A(x.title, href=f"/chat/{x.id}",cls='w-full'), 
                         P(x.created, cls='text-xs'),
@@ -88,9 +88,8 @@ async def get(id: str):
                         cls="h-[73vh] overflow-y-auto border border-gray-300 border-opacity-50 p-2 rounded-lg"
                     ),
                     Form(
-                       
                         Group(
-                             A("New", href='/', cls='btn btn-secondary px-2 bg-blue-500 text-white py-2 rounded'),
+                            A("New", href='/', cls='btn btn-secondary px-2 bg-blue-500 text-white py-2 rounded'),
                             Input(name="user_query", placeholder="Input your question here", id="msg-input", cls="w-full border rounded-lg p-2"),
                             Input(type="text", name='id', id='id-input', value=id, cls='hidden'),
                             Button(
@@ -110,7 +109,7 @@ async def get(id: str):
                     Div(hx_post="/send-message", hx_trigger="load", hx_target="#chatlist", hx_swap="beforeend show:bottom"),
                     cls='w-3/4 mx-2'
                 ),
-                cls="flex p-4 max-w-6xl mx-auto"
+                cls="flex p-4 w-full mx-auto"
             )
         )
 
@@ -118,7 +117,7 @@ async def get(id: str):
 async def delete(id: str):
     chats.delete(id)
     return Div(
-        H3('历史记录', cls='font-bold my-2'),
+        H3('Chats History', cls='font-bold my-2'),
         *[Div(
             A(x.title, href=f"/chat/{x.id}"), 
             P(x.created, cls='text-xs'),
@@ -153,19 +152,15 @@ async def send_message(user_query:str, id: str):
     return (
         user_msg, 
         assistant_msg,
-        Div(hx_trigger="load", hx_post="/disable-button")
+        Script("htmx.find('#send-button').setAttribute('disabled', 'disabled');")
     )
 
-@rt("/disable-button")
-def disable_button():
-    return Script("document.getElementById('send-button').disabled = true;")
-
 async def response_generator(user_query: str, id: str):
-    app = swarmAgent
+    app = Agents
     stream = app.run(
         model_override=os.getenv("MODEL"),
         agent=analyzer_agent,
-        messages=messages,
+        messages=messages[:-1],
         context_variables={},
         stream=True,
         debug=True,
@@ -177,13 +172,22 @@ async def response_generator(user_query: str, id: str):
         for chunk in stream:
             if "content" in chunk and chunk["content"] is not None:
                 accumulated_content += chunk["content"]
-                yield sse_message(chunk["content"])
+                if accumulated_content.endswith("\n\n"):
+                    print(accumulated_content)
+                    parts = accumulated_content.split("\n\n")
+                    to_render = "\n\n".join(parts[:-1])
+                    yield sse_message(Div(to_render, id="markdown-content", cls="marked"))
+                else:
+                    yield sse_message(chunk["content"])
             await asyncio.sleep(0)
 
     except Exception as e:
         yield sse_message(
-            H3("错误"),
-            P(f"发生错误: {str(e)}")
+           Summary(
+            Details(
+                P(f"Error: {str(e)}")
+            )
+           )
         )
     
     messages[-1]['content'] = accumulated_content
@@ -201,7 +205,7 @@ async def response_generator(user_query: str, id: str):
         event="update_chats"
     )
     
-    yield sse_message(Script("document.getElementById('send-button').disabled = false;"))
+    yield sse_message(Script("htmx.find('#send-button').removeAttribute('disabled');"))
     yield 'event: close\ndata:\n\n'
 
 @rt("/query-stream")
